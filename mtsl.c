@@ -8,6 +8,18 @@
 #define HEAD_NORTH 0
 #define NUM_THREADS 8
 
+#define CLEAR() printf("\033[2J")
+#define MOVEUP(x) printf("\033[%dA", (x))
+#define MOVEDOWN(x) printf("\033[%dB", (x))
+#define MOVERIGHT(x) printf("\033[%dC", (x))
+#define MOVELEFT(x) printf("\033[%dD", (x))
+#define MOVETO(x, y) printf("\033[%d;%dH", (x), (y))
+#define RESET_CURSOR() printf("\033[H")
+#define HIDE_CURSOR() printf("\033[?25l", (x))
+#define SHOW_CURSOR() printf("\033[?25h")
+#define HIGHT_LIGHT() printf("\033[7m")
+#define UN_HIGHT_LIGHT() printf("\033[27m")
+
 void * crossBridge(void *arg);
 void printBridge();
 
@@ -15,27 +27,27 @@ sem_t B;
 sem_t B_N;
 sem_t B_M;
 sem_t B_S;
+sem_t DRAW_KEY;
 
 
 
 struct thread_data {
     int thread_id;
     int direction;
+    char student_name;
 };
 
 struct thread_data thread_data_array[NUM_THREADS];
 
 int main() {
-
     int res;
     pthread_t crossBridgeThread[NUM_THREADS];
     void *threadRes;
     int num_thread = NUM_THREADS;
     int index = 0;
-
     srand(42);
 
-
+    //初始化信号量
     res = sem_init(&B, 0, 3);
     if (res != 0) {
         perror("Semaphore B initialization failed.\n");
@@ -56,25 +68,36 @@ int main() {
         perror("Semaphore B_M initialization failed.\n");
         exit(EXIT_FAILURE);
     }
-    printf("the bridge is open.\n");
+    res = sem_init(&DRAW_KEY, 0, 1);
+    if (res != 0) {
+        perror("Semaphore DRAW_KEY initialization failed.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // 画出桥
+    printf("N<-- the bridge is open. -->S\n");
+    printBridge();
+
     //create threads
-    for(index = 0; index < num_thread; index++) {
-        thread_data_array[index].thread_id = index;
-        thread_data_array[index].direction = rand() % 2;
-        res = pthread_create(&crossBridgeThread[index], NULL, crossBridge, (void *) &thread_data_array[index]);
-        if (res != 0) {
-            perror("Thread creation failed.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-    // waiting for crossBridge threads finish
-    for (index = 0; index < num_thread; index ++) {
-        res = pthread_join(crossBridgeThread[index], &threadRes);
-        if (res != 0) {
-            perror("Thread join failed.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
+    //for(index = 0; index < num_thread; index++) {
+    //    thread_data_array[index].thread_id = index;
+    //    thread_data_array[index].direction = rand() % 2;
+    //    thread_data_array[index].student_name = 'A' + rand() % 26;
+    //    res = pthread_create(&crossBridgeThread[index], NULL, crossBridge, (void *) &thread_data_array[index]);
+    //    if (res != 0) {
+    //        perror("Thread creation failed.\n");
+    //        exit(EXIT_FAILURE);
+    //    }
+    //}
+    //// waiting for crossBridge threads finish
+    //for (index = 0; index < num_thread; index ++) {
+    //    res = pthread_join(crossBridgeThread[index], &threadRes);
+    //    if (res != 0) {
+    //        perror("Thread join failed.\n");
+    //        exit(EXIT_FAILURE);
+    //    }
+    //}
+
     printf("students are all gone.\n");
     printf("bridge is closed.\n");
     sem_destroy(&B);
@@ -90,47 +113,118 @@ void *crossBridge(void * arg) {
     my_data = (struct thread_data *) arg;
     int t_id = my_data->thread_id;
     int t_direct = my_data->direction;
+    char student_name = my_data->student_name;
+    RESET_CURSOR();
+
     sem_wait(&B);// 获得过桥资格ss
-    if (t_direct == 0){
-        printf("student %d says, 'I wanna cross the bridge to the south.'\n", t_id);
-        sleep(1);
-
+    // 朝南走
+    if (t_direct == 1){
         sem_wait(&B_N);
-        printf("student %d says, 'I have cross the north part of the bridge.'\n", t_id);
-        sleep(1);
+        //printf("%d in N", t_id);
+        sem_wait(&DRAW_KEY);
+        MOVETO(4, 4);
+        printf("%c->", student_name);
+        sleep(2);
+        MOVETO(4, 4);
+        //printf("   ");
+        sem_post(&DRAW_KEY);
         sem_post(&B_N);
 
         sem_wait(&B_M);
-        printf("student %d says, 'I have cross the middle part of the bridge.'\n", t_id);
-        sleep(1);
+        //printf("%d in M", t_id);
+        sem_wait(&DRAW_KEY);
+        MOVETO(3, 12);
+        printf("%c->", student_name);
+        sleep(2);
+        MOVETO(3, 12);
+        //printf("   ");
+        sem_post(&DRAW_KEY);
         sem_post(&B_M);
 
         sem_wait(&B_S);
-        printf("student %d says, 'I have cross the south part of the bridge.'\n", t_id);
+        //printf("%d in S", t_id);
+        sem_wait(&DRAW_KEY);
+        MOVETO(5, 20);
+        printf("%c->", student_name);
+        sleep(2);
+        MOVETO(5, 20);
+        //printf("   ");
+        sem_post(&DRAW_KEY);
         sem_post(&B_S);
-
-        printf("student %d says, 'I have cross the whole bridge finally!'\n", t_id);
     }
+    // 朝北走
     else {
-        printf("student %d says, 'I wanna cross the bridge to the north.'\n", t_id);
-        sleep(1);
-
         sem_wait(&B_S);
-        printf("student %d says, 'I have cross the south part of the bridge.'\n", t_id);
+        //printf("%d in S", t_id);
+        sem_wait(&DRAW_KEY);
+        MOVETO(5, 20);
+        printf("%c<-", student_name);
+        sleep(2);
+        MOVETO(5, 20);
+        //printf("   ");
+        sem_post(&DRAW_KEY);
         sem_post(&B_S);
 
         sem_wait(&B_M);
-        printf("student %d says, 'I have cross the middle part of the bridge.'\n", t_id);
-        sleep(1);
+        //printf("%d in M", t_id);
+        sem_wait(&DRAW_KEY);
+        MOVETO(3, 12);
+        printf("%c<-", student_name);
+        sleep(2);
+        MOVETO(3, 12);
+        //printf("   ");
+        sem_post(&DRAW_KEY);
         sem_post(&B_M);
 
         sem_wait(&B_N);
-        printf("student %d says, 'I have cross the north part of the bridge.'\n", t_id);
-        sleep(1);
+        //printf("%d in N", t_id);
+        sem_wait(&DRAW_KEY);
+        MOVETO(4, 4);
+        printf("%c<-", student_name);
+        sleep(2);
+        MOVETO(4, 4);
+        //printf("   ");
+        sem_post(&DRAW_KEY);
         sem_post(&B_N);
 
-        printf("student %d says, 'I have cross the whole bridge finally!'\n", t_id);
     }
     sem_post(&B);
     pthread_exit(NULL);
 }
+
+/**0
+1
+2       ________
+3_______|      |________
+4
+5_______        ________
+6       |      |
+7       --------
+*/
+
+void printBridge() {
+    printf("start to draw");
+    sleep(1);
+    CLEAR();
+    RESET_CURSOR();
+    MOVEDOWN(2);
+    MOVERIGHT(8);
+    printf("_________");
+    MOVEDOWN(1);
+    printf("________|       |________");
+    MOVEDOWN(2);
+    printf("________         ________");
+    MOVEDOWN(1);
+    MOVERIGHT(8);
+    printf("|       |");
+    MOVEDOWN(1);
+    MOVERIGHT(8);
+    printf("_________");
+}
+
+
+
+
+
+
+
