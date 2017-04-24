@@ -57,10 +57,9 @@ int main() {
         exit(EXIT_FAILURE);
     }
     printf("the bridge is open.\n");
-    for
-    printf("the bridge is open.\n");
+    //create threads
     for(index = 0; index < num_thread; index++) {
-        thread_data_array[index].thread_id = index;index
+        thread_data_array[index].thread_id = index;
         thread_data_array[index].direction = rand() % 2;
         res = pthread_create(&crossBridgeThread[index], NULL, crossBridge, (void *) &thread_data_array[index]);
         if (res != 0) {
@@ -68,7 +67,7 @@ int main() {
             exit(EXIT_FAILURE);
         }
     }
-    // waiting for crossBridge thread finish
+    // waiting for crossBridge threads finish
     for (index = 0; index < num_thread; index ++) {
         res = pthread_join(crossBridgeThread[index], &threadRes);
         if (res != 0) {
@@ -93,36 +92,43 @@ void *crossBridge(void * arg) {
     int t_direct = my_data->direction;
     sem_wait(&B);// 获得过桥资格ss
     if (t_direct == 0){
-        sem_wait(&B_N);
         printf("student %d says, 'I wanna cross the bridge to the south.'\n", t_id);
         sleep(1);
-        sem_post(&B_N);
-        sem_wait(&B_M);
+
+        sem_wait(&B_N);
         printf("student %d says, 'I have cross the north part of the bridge.'\n", t_id);
         sleep(1);
-        sem_post(&B_M);
-        sem_wait(&B_S);
+        sem_post(&B_N);
+
+        sem_wait(&B_M);
         printf("student %d says, 'I have cross the middle part of the bridge.'\n", t_id);
         sleep(1);
-        srintf("student %d says, 'I have cross the south part of the bridge.'\n", t_id);
+        sem_post(&B_M);
+
+        sem_wait(&B_S);
+        printf("student %d says, 'I have cross the south part of the bridge.'\n", t_id);
         sem_post(&B_S);
+
         printf("student %d says, 'I have cross the whole bridge finally!'\n", t_id);
     }
     else {
-        srintf ("student %d says, 'I wanna cross the bridge to the north.'\n", t_id);
-        sleep(1);s
+        printf("student %d says, 'I wanna cross the bridge to the north.'\n", t_id);
         sleep(1);
-        srintf("student %d says, 'I have cross the south part of the bridge.'\n", t_id);
+
+        sem_wait(&B_S);
+        printf("student %d says, 'I have cross the south part of the bridge.'\n", t_id);
+        sem_post(&B_S);
+
+        sem_wait(&B_M);
+        printf("student %d says, 'I have cross the middle part of the bridge.'\n", t_id);
         sleep(1);
-        sem_post(&B_S);s
+        sem_post(&B_M);
+
+        sem_wait(&B_N);
+        printf("student %d says, 'I have cross the north part of the bridge.'\n", t_id);
         sleep(1);
-        srintf("student %d says, 'I have cross the middle part of the bridge.'\n", t_id);
-        sleep(1);
-        sem_post(&B_M);s
-        sleep(1);
-        srintf("student %d says, 'I have cross the north part of the bridge.'\n", t_id);
-        sleep(1);s
         sem_post(&B_N);
+
         printf("student %d says, 'I have cross the whole bridge finally!'\n", t_id);
     }
     sem_post(&B);
