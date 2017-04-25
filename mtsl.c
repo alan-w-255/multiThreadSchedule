@@ -4,50 +4,48 @@
 #include<pthread.h>
 #include<semaphore.h>
 
-#define HEAD_NORTH 0
-#define HEAD_SOUTH 1
-#define NUM_THREADS 8
+// 常量定义
+    #define NUM_THREADS 8
 
-#define NORTH_PART 0
-#define SOUTH_PART 1
-#define MIDDLE_TOP_PART 2 
-#define MIDDLE_BOTTOM_PART 3
-
-
-#define CLEAR() printf("\033[2J")
-#define MOVEUP(x) printf("\033[%dA", (x))
-#define MOVEDOWN(x) printf("\033[%dB", (x))
-#define MOVERIGHT(x) printf("\033[%dC", (x))
-#define MOVELEFT(x) printf("\033[%dD", (x))
-#define MOVETO(x, y) printf("\033[%d;%dH", (x), (y))
-#define RESET_CURSOR() printf("\033[H")
-#define HIDE_CURSOR() printf("\033[?25l", (x))
-#define SHOW_CURSOR() printf("\033[?25h")
-#define HIGHT_LIGHT() printf("\033[7m")
-#define UN_HIGHT_LIGHT() printf("\033[27m")
+// 定义光标移动函数
+    #define CLEAR() printf("\033[2J")
+    #define MOVEUP(x) printf("\033[%dA", (x))
+    #define MOVEDOWN(x) printf("\033[%dB", (x))
+    #define MOVERIGHT(x) printf("\033[%dC", (x))
+    #define MOVELEFT(x) printf("\033[%dD", (x))
+    #define MOVETO(x, y) printf("\033[%d;%dH", (x), (y))
+    #define RESET_CURSOR() printf("\033[H")
+    #define HIDE_CURSOR() printf("\033[?25l", (x))
+    #define SHOW_CURSOR() printf("\033[?25h")
+    #define HIGHT_LIGHT() printf("\033[7m")
+    #define UN_HIGHT_LIGHT() printf("\033[27m")
 
 void * crossBridge(void *arg);
 void printBridge();
 
-sem_t B;
-sem_t B_N;
-sem_t B_M;
-sem_t B_S;
+// 信号量定义
+    sem_t B;
+    sem_t B_N;
+    sem_t B_M_T;
+    sem_t B_M_B;
+    sem_t B_S;
+    sem_t DRAW_LOCK;
+    sem_t MIDDLE_STATE_LOCK;
 
-sem_t DRAW_KEY;
-sem_t DRAW_UP_KEY;
-int is_up_taken = 0;
+// 全局共享资源
+    int MT_STATE = -1;
+    int MB_STATE = -1;
 
-
-
-struct thread_data {
-    int thread_id;
-    int direction;
-    char student_name;
-};
+// 线程信息
+    struct thread_data {
+        int thread_id;
+        int direction;
+        char student_name;
+    };
 
 struct thread_data thread_data_array[NUM_THREADS];
 
+// 主函数
 int main() {
     int res;
     pthread_t crossBridgeThread[NUM_THREADS];
@@ -57,32 +55,42 @@ int main() {
     srand(22);
 
     //初始化信号量
-    res = sem_init(&B, 0, 3);
-    if (res != 0) {
-        perror("Semaphore B initialization failed.\n");
-        exit(EXIT_FAILURE);
-    }
-    res = sem_init(&B_N, 0, 1);
-    if (res != 0) {
-        perror("Semaphore B_N initialization failed.\n");
-        exit(EXIT_FAILURE);
-    }
-    res = sem_init(&B_S, 0, 1);
-    if (res != 0) {
-        perror("Semaphore B_S initialization failed.\n");
-        exit(EXIT_FAILURE);
-    }
-    res = sem_init(&B_M, 0, 2);
-    if (res != 0) {
-        perror("Semaphore B_M initialization failed.\n");
-        exit(EXIT_FAILURE);
-    }
-    res = sem_init(&DRAW_KEY, 0, 1);
-    if (res != 0) {
-        perror("Semaphore DRAW_KEY initialization failed.\n");
-        exit(EXIT_FAILURE);
-    }
-    res = sem_init(&DRAW_UP_KEY, 0, 1);
+        res = sem_init(&B, 0, 3);
+        if (res != 0) {
+            perror("Semaphore B initialization failed.\n");
+            exit(EXIT_FAILURE);
+        }
+        res = sem_init(&B_N, 0, 1);
+        if (res != 0) {
+            perror("Semaphore B_N initialization failed.\n");
+            exit(EXIT_FAILURE);
+        }
+        res = sem_init(&B_S, 0, 1);
+        if (res != 0) {
+            perror("Semaphore B_S initialization failed.\n");
+            exit(EXIT_FAILURE);
+        }
+        res = sem_init(&B_M_T, 0, 1);
+        if (res != 0) {
+            perror("Semaphore B_M_T initialization failed.\n");
+            exit(EXIT_FAILURE);
+        }
+        res = sem_init(&B_M_B, 0, 1);
+        if (res != 0) {
+            perror("Semaphore B_M_B initialization failed.\n");
+            exit(EXIT_FAILURE);
+        }
+        res = sem_init(&DRAW_LOCK, 0, 1);
+        if (res != 0) {
+            perror("Semaphore DRAW_LOCK initialization failed.\n");
+            exit(EXIT_FAILURE);
+        }
+        res = sem_init(&MIDDLE_STATE_LOCK, 0, 1);
+        if (res != 0) {
+            perror("Semaphore DRAW_LOCK initialization failed.\n");
+            exit(EXIT_FAILURE);
+        }
+
 
     // 画出桥
     printBridge();
@@ -109,151 +117,246 @@ int main() {
 
     printf("\n\n\n\n\nstudents are all gone.\n");
     printf("bridge is closed.\n");
+// 销毁信号量
     sem_destroy(&B);
     sem_destroy(&B_N);
-    sem_destroy(&B_M);
+    sem_destroy(&B_M_T);
+    sem_destroy(&B_M_B);
     sem_destroy(&B_S);
-    sem_destroy(&DRAW_KEY);
-    sem_destroy(&DRAW_UP_KEY);
+    sem_destroy(&DRAW_LOCK);
+    sem_destroy(&MIDDLE_STATE_LOCK);
     exit(EXIT_SUCCESS);
 }
 
 void *crossBridge(void * arg) {
-
     struct thread_data * my_data;
     my_data = (struct thread_data *) arg;
     //int t_id = my_data->thread_id;
     int t_direct = my_data->direction;
     char student_name = my_data->student_name;
-    int flag = 0;
+    int flag = 0; // 判断该线程走的中上部 0 还是中下部 1；
     RESET_CURSOR();
 
-    sem_wait(&B);// 获得过桥资格ss
+    sem_wait(&B);// 获得过桥资格, 最多只能允许三人通过
     // 朝南走
     if (t_direct == 1){
-
         sem_wait(&B_N);
-        //printf("%d in N", t_id);
-        sem_wait(&DRAW_KEY);
+        sem_wait(&DRAW_LOCK);
         MOVETO(5, 4);
         printf("%c->", student_name);
         fflush(stdout);
         sleep(1);
-        sem_post(&DRAW_KEY);
+        sem_post(&DRAW_LOCK);
 
-
-        sem_wait(&B_M);
-        //printf("%d in M", t_id);
-        sem_wait(&DRAW_KEY);
+        sem_wait(&MIDDLE_STATE_LOCK);
+        sem_wait(&DRAW_LOCK);
         MOVETO(5, 4);
         printf("   ");
         sem_post(&B_N);
-        sem_wait(&DRAW_UP_KEY);
-        if (is_up_taken == 0) {
-            is_up_taken = 1;
-            flag = 1;
+        if (MT_STATE == -1) {// 中上部没有人。
+            if (MB_STATE == -1 || MB_STATE == 1) {
+                //如果中下部没人或者有人向北走， 进入中上部。
+                sem_wait(&B_M_T);
+                MT_STATE = 0;
+                flag = 0;
+                MOVETO(4, 12);
+                printf("%c->", student_name);
+                fflush(stdout);
+                sleep(1);
+            }
+            else if (MB_STATE == 0) { // 如果中下部有向南走的, 从中下部走
+                sem_post(&MIDDLE_STATE_LOCK);
+                sem_wait(&B_M_B);
+                MB_STATE = 0;
+                flag = 1;
+                MOVETO(6, 12);
+                printf("%c->", student_name);
+                fflush(stdout);
+                sleep(1);
+            }
+            else {
+                printf("Error: unknow MB_STATE: %d", MB_STATE);
+                fflush(stdout);
+            }
+        }
+        else if(MT_STATE == 0) { // 中上部有向南的, 堵塞这条线程
+            sem_post(&MIDDLE_STATE_LOCK);
+            sem_wait(&B_M_T);
+            MB_STATE = 0;
+            flag = 0;
             MOVETO(4, 12);
             printf("%c->", student_name);
             fflush(stdout);
             sleep(1);
         }
-        else{
-            MOVETO(6, 12);
-            printf("%c->", student_name);
-            fflush(stdout);
-            sleep(1);
-        }
-        sem_post(&DRAW_UP_KEY);
-        sem_post(&DRAW_KEY);
-
-
-        sem_wait(&B_S);
-        //printf("%d in S", t_id);
-        sem_wait(&DRAW_KEY);
-        sem_wait(&DRAW_UP_KEY);
-        if (flag == 1) {
-            MOVETO(4, 12);
-            printf("   ");
-            is_up_taken = 0;
+        else if (MT_STATE == 1) { // 中上部有向北的，走中下部
+            if (MB_STATE == 0) { // 中下部有向南的,堵塞。 
+                sem_post(&MIDDLE_STATE_LOCK);
+                sem_wait(&B_M_B);
+                MB_STATE = 0;
+                flag = 1;
+                MOVETO(6, 12);
+                printf("%c->", student_name);
+                fflush(stdout);
+                sleep(1);
+            }
+            else if (MB_STATE == -1) { // 中下部没有人。走中下部.
+                sem_wait(&B_M_B);
+                MB_STATE = 0;
+                flag = 1;
+                MOVETO(6, 12);
+                printf("%c->", student_name);
+                fflush(stdout);
+                sleep(1);
+            }
+            else {
+                printf("Error: unknow MB_STATE: %d", MB_STATE);
+                fflush(stdout);
+                exit(EXIT_FAILURE);
+            }
         }
         else {
+            printf("Error: unknow MT_STATE: %d/n", MT_STATE);
+            fflush(stdout);
+            exit(EXIT_FAILURE);
+        }
+        sem_post(&DRAW_LOCK);
+        sem_post(&MIDDLE_STATE_LOCK);
+
+        sem_wait(&B_S);
+        sem_wait(&DRAW_LOCK);
+        if (flag == 0) {
+            sem_post(&B_M_T);
+            MT_STATE = -1;
+            MOVETO(4, 12);
+            printf("   ");
+
+        }
+        else {
+            sem_post(&B_M_B);
+            MT_STATE = -1;
             MOVETO(6, 12);
             printf("   ");
         }
-        sem_post(&B_M);
-        sem_post(&DRAW_UP_KEY);
         MOVETO(5, 20);
         printf("%c->", student_name);
         fflush(stdout);
         sleep(1);
         MOVETO(5, 20);
         printf("   ");
+        fflush(stdout);
         sleep(1);
-        sem_post(&DRAW_KEY);
+        sem_post(&DRAW_LOCK);
         sem_post(&B_S);
     }
     // 朝北走
     else {
-
-        sem_wait(&B_S);//进入第一段的资格
-        sem_wait(&DRAW_KEY);
-        MOVETO(5, 20);
+        sem_wait(&B_S);
+        sem_wait(&DRAW_LOCK);
+        MOVETO(5, 4);
         printf("<-%c", student_name);
         fflush(stdout);
         sleep(1);
-        sem_post(&DRAW_KEY);
+        sem_post(&DRAW_LOCK);
 
-
-
-        sem_wait(&B_M); // 进入中段的资格
-        sem_wait(&DRAW_KEY);
-        MOVETO(5,20);
+        sem_wait(&MIDDLE_STATE_LOCK);
+        sem_wait(&DRAW_LOCK);
+        MOVETO(5, 20);
         printf("   ");
-        sem_post(&B_S);// 释放进入第一段的资格
-        sem_wait(&DRAW_UP_KEY);
-        if (is_up_taken == 0) {
-            is_up_taken = 1;
-            flag = 1;
-            MOVETO(4, 12);
-            printf("<-%c", student_name);
+        sem_post(&B_S);
+        if (MT_STATE == -1) {// 中上部没有人。
+            if (MB_STATE == -1 || MB_STATE == 0) {
+                //如果中下部没人或者向南走， 进入中上部。
+                sem_wait(&B_M_T);
+                MT_STATE = 1;
+                flag = 0;
+                MOVETO(4, 12);
+                printf("%c->", student_name);
+                fflush(stdout);
+                sleep(1);
+            }
+            else if (MB_STATE == 1) { // 如果中下部有向北走的, 堵塞.向下走.
+                sem_post(&MIDDLE_STATE_LOCK);
+                sem_wait(&B_M_B);
+                MB_STATE = 0;
+                flag = 1;
+                MOVETO(6, 12);
+                printf("%c->", student_name);
+                fflush(stdout);
+                sleep(1);
+            }
+            else {
+                printf("Error: unknow MB_STATE: %d", MB_STATE);
+                fflush(stdout);
+            }
         }
-        else{
-            MOVETO(6, 12);
-            printf("<-%c", student_name);
+        else if(MT_STATE == 0) { // 中上部有向南的, 堵塞这条线程
+                sem_post(&MIDDLE_STATE_LOCK);
+                sem_wait(&B_M_T);
+                MT_STATE = 1;
+                flag = 0;
+                MOVETO(4, 12);
+                printf("%c->", student_name);
+                fflush(stdout);
+                sleep(1);
         }
-        fflush(stdout);
-        sleep(1);
-        sem_post(&DRAW_UP_KEY);
-        sleep(1);
-        sem_post(&DRAW_KEY);
-
-
-
-        sem_wait(&B_N);
-        sem_wait(&DRAW_KEY);
-        sem_wait(&DRAW_UP_KEY);
-        if (flag == 1) {
-            MOVETO(4, 12);
-            printf("   ");
-            is_up_taken = 0; // 
+        else if (MT_STATE == 1) { // 中上部有向北的，走中下部
+            if (MB_STATE == 0) { // 中下部有向南的,堵塞。 
+                sem_post(&MIDDLE_STATE_LOCK);
+                sem_wait(&B_M_B);
+                MB_STATE = 0;
+                flag = 1;
+                MOVETO(6, 12);
+                printf("%c->", student_name);
+                fflush(stdout);
+                sleep(1);
+            }
+            else if (MB_STATE == -1) { // 中下部没有人。走中下部.
+                sem_wait(&B_M_B);
+                MB_STATE = 0;
+                flag = 1;
+                MOVETO(6, 12);
+                printf("%c->", student_name);
+                fflush(stdout);
+                sleep(1);
+            }
+            else {
+                printf("Error: unknow MB_STATE: %d", MB_STATE);
+                fflush(stdout);
+                exit(EXIT_FAILURE);
+            }
         }
         else {
+            printf("Error: unknow MT_STATE: %d/n", MT_STATE);
+            fflush(stdout);
+            exit(EXIT_FAILURE);
+        }
+        sem_post(&DRAW_LOCK);
+        sem_post(&MIDDLE_STATE_LOCK);
+
+        sem_wait(&B_S);
+        sem_wait(&DRAW_LOCK);
+        if (flag == 0) {
+            sem_post(&B_M_T);
+            MOVETO(4, 12);
+            printf("   ");
+
+        }
+        else {
+            sem_post(&B_M_B);
             MOVETO(6, 12);
             printf("   ");
         }
-        sem_post(&B_M);// 释放进入中段的资格
-        sem_post(&DRAW_UP_KEY);
-        MOVETO(5, 4);
-        printf("<-%c", student_name);
+        MOVETO(5, 20);
+        printf("%c->", student_name);
         fflush(stdout);
         sleep(1);
-        MOVETO(5, 4);
+        MOVETO(5, 20);
         printf("   ");
+        fflush(stdout);
         sleep(1);
-        sem_post(&DRAW_KEY);
-        sem_post(&B_N);
-
-
+        sem_post(&DRAW_LOCK);
+        sem_post(&B_S);
     }
     sem_post(&B);
     pthread_exit(NULL);
@@ -295,10 +398,3 @@ void printBridge() {
     fflush(stdout);
     sleep(1);
 }
-
-
-
-
-
-
-
