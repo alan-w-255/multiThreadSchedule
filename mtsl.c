@@ -4,9 +4,15 @@
 #include<pthread.h>
 #include<semaphore.h>
 
-#define HEAD_SOUTH 1
 #define HEAD_NORTH 0
+#define HEAD_SOUTH 1
 #define NUM_THREADS 8
+
+#define NORTH_PART 0
+#define SOUTH_PART 1
+#define MIDDLE_TOP_PART 2 
+#define MIDDLE_BOTTOM_PART 3
+
 
 #define CLEAR() printf("\033[2J")
 #define MOVEUP(x) printf("\033[%dA", (x))
@@ -122,71 +128,73 @@ void *crossBridge(void * arg) {
         sem_wait(&B_N);
         //printf("%d in N", t_id);
         sem_wait(&DRAW_KEY);
-        MOVETO(4, 4);
+        MOVETO(5, 4);
         printf("%c->", student_name);
+        fflush(stdout);
         sleep(1);
-        MOVETO(4, 4);
-        //printf("   ");
         sem_post(&DRAW_KEY);
         sem_post(&B_N);
 
         sem_wait(&B_M);
         //printf("%d in M", t_id);
         sem_wait(&DRAW_KEY);
-        MOVETO(3, 12);
+        MOVETO(5, 4);
+        printf("   ");
+        MOVETO(4, 12);
         printf("%c->", student_name);
+        fflush(stdout);
         sleep(1);
-        MOVETO(3, 12);
-        //printf("   ");
         sem_post(&DRAW_KEY);
         sem_post(&B_M);
 
         sem_wait(&B_S);
         //printf("%d in S", t_id);
         sem_wait(&DRAW_KEY);
+        MOVETO(4, 12);
+        printf("   ");
         MOVETO(5, 20);
         printf("%c->", student_name);
+        fflush(stdout);
         sleep(1);
         MOVETO(5, 20);
-        //printf("   ");
+        printf("   ");
         sem_post(&DRAW_KEY);
         sem_post(&B_S);
     }
     // 朝北走
     else {
         sem_wait(&B_S);
-        //printf("%d in S", t_id);
         sem_wait(&DRAW_KEY);
-        MOVETO(4, 20);
+        MOVETO(5, 20);
         printf("%c<-", student_name);
+        fflush(stdout);
         sleep(1);
-        MOVETO(4, 20);
-        //printf("   ");
         sem_post(&DRAW_KEY);
         sem_post(&B_S);
 
         sem_wait(&B_M);
-        //printf("%d in M", t_id);
         sem_wait(&DRAW_KEY);
-        MOVETO(3, 12);
+        MOVETO(5,20);
+        printf("   ");
+        MOVETO(6, 12);
         printf("%c<-", student_name);
+        fflush(stdout);
         sleep(1);
-        MOVETO(3, 12);
-        //printf("   ");
         sem_post(&DRAW_KEY);
         sem_post(&B_M);
 
         sem_wait(&B_N);
-        //printf("%d in N", t_id);
         sem_wait(&DRAW_KEY);
-        MOVETO(4, 4);
+        MOVETO(6,12);
+        printf("   ");
+        MOVETO(5, 4);
         printf("%c<-", student_name);
+        fflush(stdout);
         sleep(1);
-        MOVETO(4, 4);
-        //printf("   ");
+        MOVETO(5, 4);
+        printf("   ");
         sem_post(&DRAW_KEY);
         sem_post(&B_N);
-
     }
     sem_post(&B);
     pthread_exit(NULL);
@@ -223,6 +231,8 @@ void printBridge() {
     MOVEDOWN(7);
     MOVERIGHT(8);
     printf("_________");
+    fflush(stdout);
+    sleep(1);
 }
 
 
