@@ -33,7 +33,10 @@ sem_t B;
 sem_t B_N;
 sem_t B_M;
 sem_t B_S;
+
 sem_t DRAW_KEY;
+sem_t DRAW_UP_KEY;
+int is_up_taken = 0;
 
 
 
@@ -51,7 +54,7 @@ int main() {
     void *threadRes;
     int num_thread = NUM_THREADS;
     int index = 0;
-    srand(42);
+    srand(22);
 
     //初始化信号量
     res = sem_init(&B, 0, 3);
@@ -79,16 +82,16 @@ int main() {
         perror("Semaphore DRAW_KEY initialization failed.\n");
         exit(EXIT_FAILURE);
     }
+    res = sem_init(&DRAW_UP_KEY, 0, 1);
 
     // 画出桥
-    printf("N<-- the bridge is open. -->S\n");
     printBridge();
 
     //create threads
     for(index = 0; index < num_thread; index++) {
         thread_data_array[index].thread_id = index;
         thread_data_array[index].direction = rand() % 2;
-        thread_data_array[index].student_name = 'A' + rand() % 26;
+        thread_data_array[index].student_name = 'A' + index % 26;
         res = pthread_create(&crossBridgeThread[index], NULL, crossBridge, (void *) &thread_data_array[index]);
         if (res != 0) {
             perror("Thread creation failed.\n");
@@ -104,12 +107,14 @@ int main() {
         }
     }
 
-    printf("\n\n\nstudents are all gone.\n");
+    printf("\n\n\n\n\nstudents are all gone.\n");
     printf("bridge is closed.\n");
     sem_destroy(&B);
     sem_destroy(&B_N);
     sem_destroy(&B_M);
     sem_destroy(&B_S);
+    sem_destroy(&DRAW_KEY);
+    sem_destroy(&DRAW_UP_KEY);
     exit(EXIT_SUCCESS);
 }
 
@@ -117,14 +122,16 @@ void *crossBridge(void * arg) {
 
     struct thread_data * my_data;
     my_data = (struct thread_data *) arg;
-    int t_id = my_data->thread_id;
+    //int t_id = my_data->thread_id;
     int t_direct = my_data->direction;
     char student_name = my_data->student_name;
+    int flag = 0;
     RESET_CURSOR();
 
     sem_wait(&B);// 获得过桥资格ss
     // 朝南走
     if (t_direct == 1){
+
         sem_wait(&B_N);
         //printf("%d in N", t_id);
         sem_wait(&DRAW_KEY);
@@ -133,74 +140,127 @@ void *crossBridge(void * arg) {
         fflush(stdout);
         sleep(1);
         sem_post(&DRAW_KEY);
-        sem_post(&B_N);
+
 
         sem_wait(&B_M);
         //printf("%d in M", t_id);
         sem_wait(&DRAW_KEY);
         MOVETO(5, 4);
         printf("   ");
-        MOVETO(4, 12);
-        printf("%c->", student_name);
-        fflush(stdout);
-        sleep(1);
+        sem_post(&B_N);
+        sem_wait(&DRAW_UP_KEY);
+        if (is_up_taken == 0) {
+            is_up_taken = 1;
+            flag = 1;
+            MOVETO(4, 12);
+            printf("%c->", student_name);
+            fflush(stdout);
+            sleep(1);
+        }
+        else{
+            MOVETO(6, 12);
+            printf("%c->", student_name);
+            fflush(stdout);
+            sleep(1);
+        }
+        sem_post(&DRAW_UP_KEY);
         sem_post(&DRAW_KEY);
-        sem_post(&B_M);
+
 
         sem_wait(&B_S);
         //printf("%d in S", t_id);
         sem_wait(&DRAW_KEY);
-        MOVETO(4, 12);
-        printf("   ");
+        sem_wait(&DRAW_UP_KEY);
+        if (flag == 1) {
+            MOVETO(4, 12);
+            printf("   ");
+            is_up_taken = 0;
+        }
+        else {
+            MOVETO(6, 12);
+            printf("   ");
+        }
+        sem_post(&B_M);
+        sem_post(&DRAW_UP_KEY);
         MOVETO(5, 20);
         printf("%c->", student_name);
         fflush(stdout);
         sleep(1);
         MOVETO(5, 20);
         printf("   ");
+        sleep(1);
         sem_post(&DRAW_KEY);
         sem_post(&B_S);
     }
     // 朝北走
     else {
-        sem_wait(&B_S);
+
+        sem_wait(&B_S);//进入第一段的资格
         sem_wait(&DRAW_KEY);
         MOVETO(5, 20);
-        printf("%c<-", student_name);
+        printf("<-%c", student_name);
         fflush(stdout);
         sleep(1);
         sem_post(&DRAW_KEY);
-        sem_post(&B_S);
 
-        sem_wait(&B_M);
+
+
+        sem_wait(&B_M); // 进入中段的资格
         sem_wait(&DRAW_KEY);
         MOVETO(5,20);
         printf("   ");
-        MOVETO(6, 12);
-        printf("%c<-", student_name);
+        sem_post(&B_S);// 释放进入第一段的资格
+        sem_wait(&DRAW_UP_KEY);
+        if (is_up_taken == 0) {
+            is_up_taken = 1;
+            flag = 1;
+            MOVETO(4, 12);
+            printf("<-%c", student_name);
+        }
+        else{
+            MOVETO(6, 12);
+            printf("<-%c", student_name);
+        }
         fflush(stdout);
         sleep(1);
+        sem_post(&DRAW_UP_KEY);
+        sleep(1);
         sem_post(&DRAW_KEY);
-        sem_post(&B_M);
+
+
 
         sem_wait(&B_N);
         sem_wait(&DRAW_KEY);
-        MOVETO(6,12);
-        printf("   ");
+        sem_wait(&DRAW_UP_KEY);
+        if (flag == 1) {
+            MOVETO(4, 12);
+            printf("   ");
+            is_up_taken = 0; // 
+        }
+        else {
+            MOVETO(6, 12);
+            printf("   ");
+        }
+        sem_post(&B_M);// 释放进入中段的资格
+        sem_post(&DRAW_UP_KEY);
         MOVETO(5, 4);
-        printf("%c<-", student_name);
+        printf("<-%c", student_name);
         fflush(stdout);
         sleep(1);
         MOVETO(5, 4);
         printf("   ");
+        sleep(1);
         sem_post(&DRAW_KEY);
         sem_post(&B_N);
+
+
     }
     sem_post(&B);
     pthread_exit(NULL);
 }
 
-/**0
+/**
+0 print a bridge like this.
 1
 2       ________
 3_______|      |________
@@ -211,8 +271,9 @@ void *crossBridge(void * arg) {
 */
 
 void printBridge() {
-    printf("start to draw");
     CLEAR();
+    RESET_CURSOR();
+    printf("N<-- the bridge is open. -->S\n");
     RESET_CURSOR();
     MOVEDOWN(2);
     MOVERIGHT(8);
