@@ -79,26 +79,26 @@ int main() {
     printBridge();
 
     //create threads
-    //for(index = 0; index < num_thread; index++) {
-    //    thread_data_array[index].thread_id = index;
-    //    thread_data_array[index].direction = rand() % 2;
-    //    thread_data_array[index].student_name = 'A' + rand() % 26;
-    //    res = pthread_create(&crossBridgeThread[index], NULL, crossBridge, (void *) &thread_data_array[index]);
-    //    if (res != 0) {
-    //        perror("Thread creation failed.\n");
-    //        exit(EXIT_FAILURE);
-    //    }
-    //}
-    //// waiting for crossBridge threads finish
-    //for (index = 0; index < num_thread; index ++) {
-    //    res = pthread_join(crossBridgeThread[index], &threadRes);
-    //    if (res != 0) {
-    //        perror("Thread join failed.\n");
-    //        exit(EXIT_FAILURE);
-    //    }
-    //}
+    for(index = 0; index < num_thread; index++) {
+        thread_data_array[index].thread_id = index;
+        thread_data_array[index].direction = rand() % 2;
+        thread_data_array[index].student_name = 'A' + rand() % 26;
+        res = pthread_create(&crossBridgeThread[index], NULL, crossBridge, (void *) &thread_data_array[index]);
+        if (res != 0) {
+            perror("Thread creation failed.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    // waiting for crossBridge threads finish
+    for (index = 0; index < num_thread; index ++) {
+        res = pthread_join(crossBridgeThread[index], &threadRes);
+        if (res != 0) {
+            perror("Thread join failed.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
 
-    printf("students are all gone.\n");
+    printf("\n\n\nstudents are all gone.\n");
     printf("bridge is closed.\n");
     sem_destroy(&B);
     sem_destroy(&B_N);
@@ -124,7 +124,7 @@ void *crossBridge(void * arg) {
         sem_wait(&DRAW_KEY);
         MOVETO(4, 4);
         printf("%c->", student_name);
-        sleep(2);
+        sleep(1);
         MOVETO(4, 4);
         //printf("   ");
         sem_post(&DRAW_KEY);
@@ -135,7 +135,7 @@ void *crossBridge(void * arg) {
         sem_wait(&DRAW_KEY);
         MOVETO(3, 12);
         printf("%c->", student_name);
-        sleep(2);
+        sleep(1);
         MOVETO(3, 12);
         //printf("   ");
         sem_post(&DRAW_KEY);
@@ -146,7 +146,7 @@ void *crossBridge(void * arg) {
         sem_wait(&DRAW_KEY);
         MOVETO(5, 20);
         printf("%c->", student_name);
-        sleep(2);
+        sleep(1);
         MOVETO(5, 20);
         //printf("   ");
         sem_post(&DRAW_KEY);
@@ -157,10 +157,10 @@ void *crossBridge(void * arg) {
         sem_wait(&B_S);
         //printf("%d in S", t_id);
         sem_wait(&DRAW_KEY);
-        MOVETO(5, 20);
+        MOVETO(4, 20);
         printf("%c<-", student_name);
-        sleep(2);
-        MOVETO(5, 20);
+        sleep(1);
+        MOVETO(4, 20);
         //printf("   ");
         sem_post(&DRAW_KEY);
         sem_post(&B_S);
@@ -170,7 +170,7 @@ void *crossBridge(void * arg) {
         sem_wait(&DRAW_KEY);
         MOVETO(3, 12);
         printf("%c<-", student_name);
-        sleep(2);
+        sleep(1);
         MOVETO(3, 12);
         //printf("   ");
         sem_post(&DRAW_KEY);
@@ -181,7 +181,7 @@ void *crossBridge(void * arg) {
         sem_wait(&DRAW_KEY);
         MOVETO(4, 4);
         printf("%c<-", student_name);
-        sleep(2);
+        sleep(1);
         MOVETO(4, 4);
         //printf("   ");
         sem_post(&DRAW_KEY);
@@ -204,20 +204,23 @@ void *crossBridge(void * arg) {
 
 void printBridge() {
     printf("start to draw");
-    sleep(1);
     CLEAR();
     RESET_CURSOR();
     MOVEDOWN(2);
     MOVERIGHT(8);
     printf("_________");
-    MOVEDOWN(1);
+    RESET_CURSOR();
+    MOVEDOWN(3);
     printf("________|       |________");
-    MOVEDOWN(2);
+    RESET_CURSOR();
+    MOVEDOWN(5);
     printf("________         ________");
-    MOVEDOWN(1);
+    RESET_CURSOR();
+    MOVEDOWN(6);
     MOVERIGHT(8);
     printf("|       |");
-    MOVEDOWN(1);
+    RESET_CURSOR();
+    MOVEDOWN(7);
     MOVERIGHT(8);
     printf("_________");
 }
