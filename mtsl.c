@@ -86,6 +86,7 @@ int main() {
     printBridge();
 
     //create threads
+
     for(index = 0; index < num_thread; index++) {
         student_data_array[index].student_id = index;
         student_data_array[index].direction = rand() % 2;
@@ -97,6 +98,7 @@ int main() {
             exit(EXIT_FAILURE);
         }
     }
+
     // waiting for crossBridge threads finish
     for (index = 0; index < num_thread; index ++) {
         res = pthread_join(crossBridgeThread[index], &threadRes);
@@ -108,7 +110,8 @@ int main() {
 
     printf("\n\n\n\n\nstudents are all gone.\n");
     printf("bridge is closed.\n");
-// 销毁信号量
+
+    // 销毁信号量
     sem_destroy(&B);
     sem_destroy(&B_N);
     sem_destroy(&B_M);
