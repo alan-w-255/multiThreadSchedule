@@ -6,7 +6,7 @@
 
 #define HEAD_NORTH 0
 #define HEAD_SOUTH 1
-#define NUM_THREADS 8
+#define NUM_THREADS 20
 
 #define NORTH_PART 0
 #define SOUTH_PART 1
@@ -120,12 +120,12 @@ void *crossBridge(void * arg) {
 
     struct thread_data * my_data;
     my_data = (struct thread_data *) arg;
-    //int t_id = my_data->thread_id;
+    int t_id = my_data->thread_id;
     int t_direct = my_data->direction;
     char student_name = my_data->student_name;
     int flag = 0;
+    int font_color = t_id % 7;
     RESET_CURSOR();
-
     sem_wait(&B);// 获得过桥资格ss
     // 朝南走
     if (t_direct == 1){
@@ -133,7 +133,7 @@ void *crossBridge(void * arg) {
         sem_wait(&B_N);
         //printf("%d in N", t_id);
         MOVETO(5, 4);
-        printf("%c->", student_name);
+        printf("\033[47;3%dm%c->\033[0m", font_color, student_name);
         fflush(stdout);
         sleep(1);
 
@@ -148,13 +148,13 @@ void *crossBridge(void * arg) {
             is_up_taken = 1;
             flag = 1;
             MOVETO(4, 12);
-            printf("%c->", student_name);
+            printf("\033[47;3%dm%c->\033[0m", font_color, student_name);
             fflush(stdout);
             sleep(1);
         }
         else{
             MOVETO(6, 12);
-            printf("%c->", student_name);
+            printf("\033[47;3%dm%c->\033[0m", font_color, student_name);
             fflush(stdout);
             sleep(1);
         }
@@ -176,7 +176,7 @@ void *crossBridge(void * arg) {
         sem_post(&B_M);
         sem_post(&DRAW_UP_KEY);
         MOVETO(5, 20);
-        printf("%c->", student_name);
+        printf("\033[47;3%dm%c->\033[0m", font_color, student_name);
         fflush(stdout);
         sleep(1);
         MOVETO(5, 20);
@@ -190,7 +190,7 @@ void *crossBridge(void * arg) {
 
         sem_wait(&B_S);//进入第一段的资格
         MOVETO(5, 20);
-        printf("<-%c", student_name);
+        printf("\033[47;3%dm<-%c\033[0m", font_color, student_name);
         fflush(stdout);
         sleep(1);
 
@@ -205,11 +205,11 @@ void *crossBridge(void * arg) {
             is_up_taken = 1;
             flag = 1;
             MOVETO(4, 12);
-            printf("<-%c", student_name);
+            printf("\033[47;3%dm<-%c\033[0m", font_color, student_name);
         }
         else{
             MOVETO(6, 12);
-            printf("<-%c", student_name);
+            printf("\033[47;3%dm<-%c\033[0m", font_color, student_name);
         }
         fflush(stdout);
         sleep(1);
@@ -234,7 +234,7 @@ void *crossBridge(void * arg) {
         sem_post(&B_M);// 释放进入中段的资格
         sem_post(&DRAW_UP_KEY);
         MOVETO(5, 4);
-        printf("<-%c", student_name);
+        printf("\033[47;3%dm<-%c\033[0m", font_color, student_name);
         fflush(stdout);
         sleep(1);
         MOVETO(5, 4);
