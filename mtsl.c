@@ -4,10 +4,11 @@
 #include<pthread.h>
 #include<semaphore.h>
 
-// 常量定义
-    #define NUM_THREADS 8
 
-// 定义光标移动函数
+// 线程数
+#define NUM_THREADS 20
+
+// 光标移动函数
     #define CLEAR() printf("\033[2J")
     #define MOVEUP(x) printf("\033[%dA", (x))
     #define MOVEDOWN(x) printf("\033[%dB", (x))
@@ -15,35 +16,33 @@
     #define MOVELEFT(x) printf("\033[%dD", (x))
     #define MOVETO(x, y) printf("\033[%d;%dH", (x), (y))
     #define RESET_CURSOR() printf("\033[H")
-    #define HIDE_CURSOR() printf("\033[?25l", (x))
+    #define HIDE_CURSOR() printf("\033[?25l")
     #define SHOW_CURSOR() printf("\033[?25h")
     #define HIGHT_LIGHT() printf("\033[7m")
     #define UN_HIGHT_LIGHT() printf("\033[27m")
 
+// 信号量
+sem_t B;
+sem_t B_N;
+sem_t B_M;
+sem_t B_S; 
+
+sem_t GO_UP_LOCK;
+int is_up_taken = 0;
+
 void * crossBridge(void *arg);
 void printBridge();
+void student_walk(int x, int y, int Fcolor, int Bcolor, int speed, char student_name, int direction, int where_stop);
 
-// 信号量定义
-    sem_t B;
-    sem_t B_N;
-    sem_t B_M_T;
-    sem_t B_M_B;
-    sem_t B_S;
-    sem_t DRAW_LOCK;
-    sem_t MIDDLE_STATE_LOCK;
 
-// 全局共享资源
-    int MT_STATE = -1;
-    int MB_STATE = -1;
+struct student_data {
+    int student_id;
+    int direction;
+    int speed;
+    char student_name;
+};
 
-// 线程信息
-    struct thread_data {
-        int thread_id;
-        int direction;
-        char student_name;
-    };
-
-struct thread_data thread_data_array[NUM_THREADS];
+struct student_data student_data_array[NUM_THREADS];
 
 // 主函数
 int main() {
@@ -52,44 +51,35 @@ int main() {
     void *threadRes;
     int num_thread = NUM_THREADS;
     int index = 0;
-    srand(22);
+
+    srand(42);
 
     //初始化信号量
-        res = sem_init(&B, 0, 3);
-        if (res != 0) {
-            perror("Semaphore B initialization failed.\n");
-            exit(EXIT_FAILURE);
-        }
-        res = sem_init(&B_N, 0, 1);
-        if (res != 0) {
-            perror("Semaphore B_N initialization failed.\n");
-            exit(EXIT_FAILURE);
-        }
-        res = sem_init(&B_S, 0, 1);
-        if (res != 0) {
-            perror("Semaphore B_S initialization failed.\n");
-            exit(EXIT_FAILURE);
-        }
-        res = sem_init(&B_M_T, 0, 1);
-        if (res != 0) {
-            perror("Semaphore B_M_T initialization failed.\n");
-            exit(EXIT_FAILURE);
-        }
-        res = sem_init(&B_M_B, 0, 1);
-        if (res != 0) {
-            perror("Semaphore B_M_B initialization failed.\n");
-            exit(EXIT_FAILURE);
-        }
-        res = sem_init(&DRAW_LOCK, 0, 1);
-        if (res != 0) {
-            perror("Semaphore DRAW_LOCK initialization failed.\n");
-            exit(EXIT_FAILURE);
-        }
-        res = sem_init(&MIDDLE_STATE_LOCK, 0, 1);
-        if (res != 0) {
-            perror("Semaphore DRAW_LOCK initialization failed.\n");
-            exit(EXIT_FAILURE);
-        }
+    res = sem_init(&B, 0, 2);
+    if (res != 0) {
+        perror("Semaphore B initialization failed.\n");
+        exit(EXIT_FAILURE);
+    }
+    res = sem_init(&B_N, 0, 1);
+    if (res != 0) {
+        perror("Semaphore B_N initialization failed.\n");
+        exit(EXIT_FAILURE);
+    }
+    res = sem_init(&B_S, 0, 1);
+    if (res != 0) {
+        perror("Semaphore B_S initialization failed.\n");
+        exit(EXIT_FAILURE);
+    }
+    res = sem_init(&B_M, 0, 2);
+    if (res != 0) {
+        perror("Semaphore B_M initialization failed.\n");
+        exit(EXIT_FAILURE);
+    }
+    res = sem_init(&GO_UP_LOCK, 0, 1);
+    if (res != 0) {
+        perror("Semaphore GO_UP_LOCK initialization failed.\n");
+        exit(EXIT_FAILURE);
+    }
 
 
     // 画出桥
@@ -97,10 +87,11 @@ int main() {
 
     //create threads
     for(index = 0; index < num_thread; index++) {
-        thread_data_array[index].thread_id = index;
-        thread_data_array[index].direction = rand() % 2;
-        thread_data_array[index].student_name = 'A' + index % 26;
-        res = pthread_create(&crossBridgeThread[index], NULL, crossBridge, (void *) &thread_data_array[index]);
+        student_data_array[index].student_id = index;
+        student_data_array[index].direction = rand() % 2;
+        student_data_array[index].student_name = 'A' + index % 26;
+        student_data_array[index].speed = rand() % 5000 + 60000;
+        res = pthread_create(&crossBridgeThread[index], NULL, crossBridge, (void *) &student_data_array[index]);
         if (res != 0) {
             perror("Thread creation failed.\n");
             exit(EXIT_FAILURE);
@@ -120,281 +111,227 @@ int main() {
 // 销毁信号量
     sem_destroy(&B);
     sem_destroy(&B_N);
-    sem_destroy(&B_M_T);
-    sem_destroy(&B_M_B);
+    sem_destroy(&B_M);
     sem_destroy(&B_S);
-    sem_destroy(&DRAW_LOCK);
-    sem_destroy(&MIDDLE_STATE_LOCK);
+    sem_destroy(&GO_UP_LOCK);
     exit(EXIT_SUCCESS);
 }
 
 void *crossBridge(void * arg) {
-    struct thread_data * my_data;
-    my_data = (struct thread_data *) arg;
-    //int t_id = my_data->thread_id;
+    int a[2] = {4, 1};
+    //int b[2] = {7, 1};
+    int c[2] = {4, 12};
+    //int d[2] = {7, 27};
+    int e[2] = {4, 27};
+    //int f[2] = {7, 27};
+    int g[2] = {9, 27};
+    int h[2] = {9, 12};
+    int i[2] = {3, 12};
+    int j[2] = {3, 27};
+    int k[2] = {4, 40};
+    //int l[2] = {7, 40};
+
+    struct student_data * my_data;
+    my_data = (struct student_data *) arg;
+    int t_id = my_data->student_id;
     int t_direct = my_data->direction;
     char student_name = my_data->student_name;
-    int flag = 0; // 判断该线程走的中上部 0 还是中下部 1；
-    RESET_CURSOR();
+    int font_color = t_id % 7;
+    int speed = my_data->speed;
+    int flag = 0;
+    int step = 0;
 
-    sem_wait(&B);// 获得过桥资格, 最多只能允许三人通过
+
+    RESET_CURSOR();
+    sem_wait(&B);// 获得过桥资格ss
     // 朝南走
     if (t_direct == 1){
         sem_wait(&B_N);
-        sem_wait(&DRAW_LOCK);
-        MOVETO(5, 4);
-        printf("%c->", student_name);
-        fflush(stdout);
-        sleep(1);
-        sem_post(&DRAW_LOCK);
+        //printf("%d in N", t_id);
+        for (step = a[1]; step <= c[1] - 3; step++){
+            student_walk(c[0] + 2, step, font_color, 7, speed, student_name, 1, c[1]-3);
+        }
 
-        sem_wait(&MIDDLE_STATE_LOCK);
-        sem_wait(&DRAW_LOCK);
-        MOVETO(5, 4);
-        printf("   ");
+        sem_wait(&B_M);
+        //printf("%d in M", t_id);
         sem_post(&B_N);
-        if (MT_STATE == -1) {// 中上部没有人。
-            if (MB_STATE == -1 || MB_STATE == 1) {
-                //如果中下部没人或者有人向北走， 进入中上部。
-                sem_wait(&B_M_T);
-                MT_STATE = 0;
-                flag = 0;
-                MOVETO(4, 12);
-                printf("%c->", student_name);
-                fflush(stdout);
-                sleep(1);
-            }
-            else if (MB_STATE == 0) { // 如果中下部有向南走的, 从中下部走
-                sem_post(&MIDDLE_STATE_LOCK);
-                sem_wait(&B_M_B);
-                MB_STATE = 0;
-                flag = 1;
-                MOVETO(6, 12);
-                printf("%c->", student_name);
-                fflush(stdout);
-                sleep(1);
-            }
-            else {
-                printf("Error: unknow MB_STATE: %d", MB_STATE);
-                fflush(stdout);
+        MOVETO(c[0] + 2, c[1] - 3);
+        printf("   ");
+        fflush(stdout);
+        sem_wait(&GO_UP_LOCK);
+        if (is_up_taken == 0) {
+            is_up_taken = 1;
+            sem_post(&GO_UP_LOCK);
+            flag = 1;
+            for (step = c[1] + 1 ; step <= e[1]-3; step++){
+                student_walk(i[0] + 1, step, font_color, 7, speed, student_name, 1, e[1] -3);
             }
         }
-        else if(MT_STATE == 0) { // 中上部有向南的, 堵塞这条线程
-            sem_post(&MIDDLE_STATE_LOCK);
-            sem_wait(&B_M_T);
-            MB_STATE = 0;
-            flag = 0;
-            MOVETO(4, 12);
-            printf("%c->", student_name);
-            fflush(stdout);
-            sleep(1);
-        }
-        else if (MT_STATE == 1) { // 中上部有向北的，走中下部
-            if (MB_STATE == 0) { // 中下部有向南的,堵塞。 
-                sem_post(&MIDDLE_STATE_LOCK);
-                sem_wait(&B_M_B);
-                MB_STATE = 0;
-                flag = 1;
-                MOVETO(6, 12);
-                printf("%c->", student_name);
-                fflush(stdout);
-                sleep(1);
-            }
-            else if (MB_STATE == -1) { // 中下部没有人。走中下部.
-                sem_wait(&B_M_B);
-                MB_STATE = 0;
-                flag = 1;
-                MOVETO(6, 12);
-                printf("%c->", student_name);
-                fflush(stdout);
-                sleep(1);
-            }
-            else {
-                printf("Error: unknow MB_STATE: %d", MB_STATE);
-                fflush(stdout);
-                exit(EXIT_FAILURE);
+        else{
+            sem_post(&GO_UP_LOCK);
+            for (step = c[1] + 1 ; step <= e[1]-3; step++){
+                student_walk(h[0] - 1, step, font_color, 7, speed, student_name, 1, e[1] - 3);
             }
         }
-        else {
-            printf("Error: unknow MT_STATE: %d/n", MT_STATE);
-            fflush(stdout);
-            exit(EXIT_FAILURE);
-        }
-        sem_post(&DRAW_LOCK);
-        sem_post(&MIDDLE_STATE_LOCK);
+
 
         sem_wait(&B_S);
-        sem_wait(&DRAW_LOCK);
-        if (flag == 0) {
-            sem_post(&B_M_T);
-            MT_STATE = -1;
-            MOVETO(4, 12);
+        sem_wait(&GO_UP_LOCK);
+        if (flag == 1) {
+            is_up_taken = 0;
+            sem_post(&GO_UP_LOCK);
+            MOVETO(j[0] + 1, e[1] - 3);
             printf("   ");
-
+            fflush(stdout);
         }
         else {
-            sem_post(&B_M_B);
-            MT_STATE = -1;
-            MOVETO(6, 12);
+            sem_post(&GO_UP_LOCK);
+            MOVETO(g[0] - 1, e[1] - 3);
             printf("   ");
+            fflush(stdout);
         }
-        MOVETO(5, 20);
-        printf("%c->", student_name);
-        fflush(stdout);
-        sleep(1);
-        MOVETO(5, 20);
-        printf("   ");
-        fflush(stdout);
-        sleep(1);
-        sem_post(&DRAW_LOCK);
+        sem_post(&B_M);
+        for (step = e[1]; step <= k[1]; step++){
+            student_walk(a[0] + 2, step, font_color, 7, speed, student_name, 1, -1);
+        }
         sem_post(&B_S);
     }
     // 朝北走
-    else {
-        sem_wait(&B_S);
-        sem_wait(&DRAW_LOCK);
-        MOVETO(5, 4);
-        printf("<-%c", student_name);
-        fflush(stdout);
-        sleep(1);
-        sem_post(&DRAW_LOCK);
+    else if (t_direct == 0) {
 
-        sem_wait(&MIDDLE_STATE_LOCK);
-        sem_wait(&DRAW_LOCK);
-        MOVETO(5, 20);
-        printf("   ");
-        sem_post(&B_S);
-        if (MT_STATE == -1) {// 中上部没有人。
-            if (MB_STATE == -1 || MB_STATE == 0) {
-                //如果中下部没人或者向南走， 进入中上部。
-                sem_wait(&B_M_T);
-                MT_STATE = 1;
-                flag = 0;
-                MOVETO(4, 12);
-                printf("%c->", student_name);
-                fflush(stdout);
-                sleep(1);
-            }
-            else if (MB_STATE == 1) { // 如果中下部有向北走的, 堵塞.向下走.
-                sem_post(&MIDDLE_STATE_LOCK);
-                sem_wait(&B_M_B);
-                MB_STATE = 0;
-                flag = 1;
-                MOVETO(6, 12);
-                printf("%c->", student_name);
-                fflush(stdout);
-                sleep(1);
-            }
-            else {
-                printf("Error: unknow MB_STATE: %d", MB_STATE);
-                fflush(stdout);
+        if (font_color == 1){// 不允许字体为红色
+            font_color = 2;
+        }
+        sem_wait(&B_S);//进入第一段的资格
+        for (step = k[1]; step >= e[1]; step--){
+            student_walk(a[0] + 2, step, font_color, 1, speed, student_name, 0, e[1]);
+        }
+
+        sem_wait(&B_M); // 进入中段的资格
+        sem_wait(&GO_UP_LOCK);
+        sem_post(&B_S);// 释放进入第一段的资格
+        MOVETO(a[0]+2, e[1]),
+        printf("    ");
+        fflush(stdout);
+        if (is_up_taken == 0) {
+            is_up_taken = 1;
+            sem_post(&GO_UP_LOCK);
+            flag = 1;
+            for (step = e[1] - 3; step >= i[1] + 1; step--){
+                student_walk(i[0] + 1, step, font_color, 1, speed, student_name, 0, i[1] + 1);
             }
         }
-        else if(MT_STATE == 0) { // 中上部有向南的, 堵塞这条线程
-                sem_post(&MIDDLE_STATE_LOCK);
-                sem_wait(&B_M_T);
-                MT_STATE = 1;
-                flag = 0;
-                MOVETO(4, 12);
-                printf("%c->", student_name);
-                fflush(stdout);
-                sleep(1);
-        }
-        else if (MT_STATE == 1) { // 中上部有向北的，走中下部
-            if (MB_STATE == 0) { // 中下部有向南的,堵塞。 
-                sem_post(&MIDDLE_STATE_LOCK);
-                sem_wait(&B_M_B);
-                MB_STATE = 0;
-                flag = 1;
-                MOVETO(6, 12);
-                printf("%c->", student_name);
-                fflush(stdout);
-                sleep(1);
-            }
-            else if (MB_STATE == -1) { // 中下部没有人。走中下部.
-                sem_wait(&B_M_B);
-                MB_STATE = 0;
-                flag = 1;
-                MOVETO(6, 12);
-                printf("%c->", student_name);
-                fflush(stdout);
-                sleep(1);
-            }
-            else {
-                printf("Error: unknow MB_STATE: %d", MB_STATE);
-                fflush(stdout);
-                exit(EXIT_FAILURE);
+        else{
+            sem_post(&GO_UP_LOCK);
+            for (step = e[1] - 3; step >= h[1] + 1; step--){
+                student_walk(h[0] - 1, step, font_color, 1, speed, student_name, 0, h[1] + 1);
             }
         }
-        else {
-            printf("Error: unknow MT_STATE: %d/n", MT_STATE);
+        usleep(speed);
+
+        sem_wait(&B_N);
+        sem_wait(&GO_UP_LOCK);
+        if (flag == 1) {
+            is_up_taken = 0; // 
+            sem_post(&GO_UP_LOCK);
+            MOVETO(i[0] + 1, i[1] + 1);
+            printf("   ");
             fflush(stdout);
-            exit(EXIT_FAILURE);
-        }
-        sem_post(&DRAW_LOCK);
-        sem_post(&MIDDLE_STATE_LOCK);
-
-        sem_wait(&B_S);
-        sem_wait(&DRAW_LOCK);
-        if (flag == 0) {
-            sem_post(&B_M_T);
-            MOVETO(4, 12);
-            printf("   ");
-
         }
         else {
-            sem_post(&B_M_B);
-            MOVETO(6, 12);
+            sem_post(&GO_UP_LOCK);
+            MOVETO(h[0] - 1, h[1] + 1);
             printf("   ");
+            fflush(stdout);
         }
-        MOVETO(5, 20);
-        printf("%c->", student_name);
-        fflush(stdout);
-        sleep(1);
-        MOVETO(5, 20);
-        printf("   ");
-        fflush(stdout);
-        sleep(1);
-        sem_post(&DRAW_LOCK);
-        sem_post(&B_S);
+
+        sem_post(&B_M);// 释放进入中段的资格
+        for (step = c[1] - 3; step > 0; step--){
+            student_walk(a[0] + 2, step, font_color, 1, speed, student_name, 0, -1);
+        }
+        usleep(speed);
+        sem_post(&B_N);
     }
     sem_post(&B);
     pthread_exit(NULL);
 }
 
 /**
-0 print a bridge like this.
-1
-2       ________
-3_______|      |________
-4
-5_______        ________
-6       |      |
-7       --------
+0         1         2         3         4    
+11234567890123456789012345678901234567890
+2
+3           i--------------j
+4a__________|              |____________k
+5           c              e
+6
+7___________d              f____________l
+8b          |              |
+9           h--------------g
+0
+a = [4, 1]
+b = [7, 1]
+c = [4, 12]
+d = [7, 27]
+e = [4, 27]
+f = [7, 27]
+g = [9, 27]
+h = [9, 12]
+i = [3, 12]
+j = [3, 27]
+k = [4, 40]
+l = [7, 40]
 */
 
 void printBridge() {
     CLEAR();
     RESET_CURSOR();
-    printf("N<-- the bridge is open. -->S\n");
+    printf("N<<- the bridge is open. ->>S\n");
     RESET_CURSOR();
-    MOVEDOWN(2);
-    MOVERIGHT(8);
-    printf("_________");
-    RESET_CURSOR();
-    MOVEDOWN(3);
-    printf("________|       |________");
-    RESET_CURSOR();
-    MOVEDOWN(5);
-    printf("________         ________");
-    RESET_CURSOR();
-    MOVEDOWN(6);
-    MOVERIGHT(8);
-    printf("|       |");
-    RESET_CURSOR();
-    MOVEDOWN(7);
-    MOVERIGHT(8);
-    printf("_________");
+    MOVETO(3,12);
+    printf("__________________");
+    MOVETO(4,1);
+    printf("___________|                |____________");
+    MOVETO(7,1);
+    printf("___________                  ____________");
+    MOVETO(8, 12);
+    printf("|                |");
+    MOVETO(9, 12);
+    printf("------------------");
     fflush(stdout);
-    sleep(1);
+    HIDE_CURSOR();
+    usleep(100000);
 }
+
+void student_walk(int x, int y, int Fcolor, int Bcolor, int speed, char student_name, int direction, int where_stop) {
+    if (direction == 1){
+        MOVETO(x, y);
+        printf("\033[4%d;3%dm%c>>\033[0m", Bcolor, Fcolor, student_name);
+        fflush(stdout);
+        HIDE_CURSOR();
+        usleep(speed);
+        MOVETO(x, y);
+        printf("   ");
+        if (y == where_stop){
+            MOVETO(x, y);
+            printf("\033[4%d;3%dm%c>>\033[0m", Bcolor, Fcolor, student_name);
+        }
+    }
+    else if(direction == 0){
+        MOVETO(x, y);
+        printf("\033[4%d;3%dm<<%c\033[0m", Bcolor, Fcolor, student_name);
+        fflush(stdout);
+        HIDE_CURSOR();
+        usleep(speed);
+        MOVETO(x, y);
+        printf("   ");
+        if (y == where_stop){
+            MOVETO(x, y);
+            printf("\033[4%d;3%dm<<%c\033[0m", Bcolor, Fcolor, student_name);
+        }
+    }
+    else{
+        perror("direction must be 1 or 0");
+        exit(EXIT_FAILURE);
+    }
+}
+
