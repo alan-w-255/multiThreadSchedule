@@ -23,7 +23,7 @@
 #define HEAD_SOUTH 1
 #define NOT_TAKEN 2
 
-pthread_cond_t B_N, B_M_T, B_M, B_M_B, B_S,bridge_full;
+pthread_cond_t B_N, B_M_T, B_M, B_M_B, B_S, bridge_full;
 
 pthread_mutex_t student_on_bridge_counter_lock;// 桥上人数计数器互斥锁
 pthread_mutex_t lock;

@@ -161,9 +161,9 @@ void *crossBridge(void * arg) {
         }
 
         sem_wait(&B_M);
-        sem_post(&B_N);
         MOVETO(c[0] + 2, c[1] - 3);
         printf("   ");
+        sem_post(&B_N);
         sem_wait(&GO_UP_LOCK);
         if (is_up_taken == 0) {
             is_up_taken = 1;
@@ -209,9 +209,9 @@ void *crossBridge(void * arg) {
 
         sem_wait(&B_M); // 进入中段的资格
         sem_wait(&GO_UP_LOCK);
-        sem_post(&B_S);// 释放进入第一段的资格
         MOVETO(a[0]+2, e[1]),
         printf("    ");
+        sem_post(&B_S);// 释放进入第一段的资格
         if (is_up_taken == 0) {
             is_up_taken = 1;
             sem_post(&GO_UP_LOCK);
